@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+{% block title %}Levering{% endblock %}
+{% block content %}
+<h1 class="text-xl font-semibold mb-1">Levering registreren</h1>
+<p class="text-sm text-gray-500 mb-5">Vul per product het aantal geleverde flessen in</p>
+
+<div class="space-y-1.5 pb-48" id="delivery-list">
+    {% for product in products %}
+    {% set parts = parse_product_name(product.name) %}
+    <div class="delivery-item bg-white border-2 border-gray-200 rounded-lg px-3 py-2.5 flex items-center"
+         data-id="{{ product.id }}">
+        <span class="shrink-0 w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center text-[0.65rem] font-bold text-gray-500 mr-2.5">{{ brand_initials(parts.house) }}</span>
+        <div class="min-w-0 flex-1 mr-2">
+            <div class="font-medium text-sm text-gray-900 truncate">{% if parts.type %}{{ parts.type }}{% else %}{{ parts.house }}{% endif %}</div>
+            <div class="text-xs text-gray-500 truncate">
+                {{ parts.house }}{% if parts.volume %} · {{ parts.volume }}{% endif %}
+            </div>
+        </div>
+        <input type="text" inputmode="numeric" pattern="[0-9]*" autocomplete="off"
+               class="qty-input w-12 h-8 text-center text-sm font-bold border border-gray-200 rounded-lg bg-white tabular-nums focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent"
+               placeholder="0">
+        <div class="text-xs text-gray-500 ml-2 w-5 text-right tabular-nums shrink-0">{{ product.stock_quantity|default(0) }}</div>
+    </div>
+    {% endfor %}
+</div>
+
+<!-- Confirm bar -->
+<div class="fixed bottom-0 inset-x-0 z-40 bg-white border-t border-gray-200 px-3 pt-3 hidden" id="confirm-bar" style="padding-bottom: calc(0.75rem + env(safe-area-inset-bottom))">
+    <div class="max-w-lg mx-auto">
+        <p class="text-sm text-gray-500 mb-2" id="confirm-summary"></p>
+        <div class="mb-3">
+            <input type="text" id="note-input" placeholder="Opmerking (optioneel)"
+                   class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent">
+        </div>
+        <form method="POST" id="confirm-form">
+            <input type="hidden" name="items" id="items-input" value="[]">
+            <input type="hidden" name="note" id="note-hidden" value="">
+            <button type="submit"
+                    class="w-full py-3.5 bg-emerald-700 text-white text-sm font-semibold rounded-xl hover:bg-emerald-800 active:bg-emerald-900">
+                Levering registreren
+            </button>
+        </form>
+    </div>
+</div>
+
+<script>
+var list = document.getElementById('delivery-list');
+
+list.addEventListener('input', function(e) {
+    if (!e.target.classList.contains('qty-input')) return;
+    var row = e.target.closest('.delivery-item');
+    var val = parseInt(e.target.value) || 0;
+
+    if (val > 0) {
+        row.classList.remove('border-gray-200');
+        row.classList.add('border-gray-900', 'bg-gray-50');
+    } else {
+        row.classList.add('border-gray-200');
+        row.classList.remove('border-gray-900', 'bg-gray-50');
+    }
+    updateConfirmBar();
+});
+
+function updateConfirmBar() {
+    var bar = document.getElementById('confirm-bar');
+    var rows = list.querySelectorAll('.delivery-item');
+    var total = 0;
+    var types = 0;
+    var items = [];
+
+    rows.forEach(function(row) {
+        var qty = parseInt(row.querySelector('.qty-input').value) || 0;
+        if (qty > 0) {
+            total += qty;
+            types++;
+            items.push({ id: parseInt(row.dataset.id), qty: qty });
+        }
+    });
+
+    if (total > 0) {
+        bar.classList.remove('hidden');
+        document.getElementById('confirm-summary').innerHTML =
+            '<strong>' + total + ' fles' + (total !== 1 ? 'sen' : '') + '</strong> (' +
+            types + ' soort' + (types !== 1 ? 'en' : '') + ')';
+        document.getElementById('items-input').value = JSON.stringify(items);
+    } else {
+        bar.classList.add('hidden');
+    }
+}
+
+document.getElementById('confirm-form').addEventListener('submit', function() {
+    document.getElementById('note-hidden').value = document.getElementById('note-input').value.trim();
+});
+</script>
+{% endblock %}

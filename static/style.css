@@ -1,0 +1,15 @@
+/* Bottom sheet transition */
+#sheet {
+  transition: transform 0.25s cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+#sheet-backdrop {
+  transition: opacity 0.2s;
+}
+
+/* Safe area for bottom sheet on notched phones */
+@supports (padding-bottom: env(safe-area-inset-bottom)) {
+  #sheet form {
+    padding-bottom: calc(1.5rem + env(safe-area-inset-bottom));
+  }
+}

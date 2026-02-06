@@ -1,0 +1,115 @@
+{% extends "base.html" %}
+{% block title %}Selecteer flessen{% endblock %}
+{% block content %}
+<div class="mb-6">
+    <a href="{{ url_for('withdrawal_reason') }}" class="text-sm text-gray-500 hover:text-gray-700">&larr; Terug</a>
+</div>
+
+<div class="mb-1">
+    <span class="inline-flex items-center gap-1 text-xs font-semibold bg-gray-100 text-gray-600 px-2.5 py-1 rounded-md uppercase tracking-wide">
+        {% if reason == 'overig' and custom_reason %}{{ custom_reason }}{% elif reason == 'proeverij' %}🍷 Proeverij{% elif reason == 'vergadering' %}📋 Vergadering{% else %}{{ reason }}{% endif %}
+    </span>
+</div>
+<h1 class="text-xl font-semibold mb-1">Selecteer flessen</h1>
+<p class="text-sm text-gray-500 mb-5">Gebruik +/− om flessen toe te voegen</p>
+
+<div class="space-y-1.5 pb-32" id="select-list">
+    {% for product in products %}
+    {% set parts = parse_product_name(product.name) %}
+    <div class="select-item bg-white border-2 border-gray-200 rounded-lg px-3 py-2.5 flex items-center"
+         data-id="{{ product.id }}" data-stock="{{ product.stock_quantity }}" data-name="{{ product.name }}">
+        <span class="shrink-0 w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center text-[0.65rem] font-bold text-gray-500 mr-2.5">{{ brand_initials(parts.house) }}</span>
+        <div class="min-w-0 flex-1 mr-2">
+            <div class="font-medium text-sm text-gray-900 truncate">{% if parts.type %}{{ parts.type }}{% else %}{{ parts.house }}{% endif %}</div>
+            <div class="text-xs text-gray-500 truncate">
+                {{ parts.house }}{% if parts.volume %} · {{ parts.volume }}{% endif %}
+            </div>
+        </div>
+        <div class="flex items-center gap-0 shrink-0">
+            <button type="button" class="step-minus w-8 h-8 border border-gray-200 rounded-l-lg text-base flex items-center justify-center bg-white hover:bg-gray-50 active:bg-gray-100 disabled:opacity-30" disabled>−</button>
+            <div class="step-val w-9 h-8 border-t border-b border-gray-200 flex items-center justify-center text-sm font-bold tabular-nums bg-white">0</div>
+            <button type="button" class="step-plus w-8 h-8 border border-gray-200 rounded-r-lg text-base flex items-center justify-center bg-white hover:bg-gray-50 active:bg-gray-100">+</button>
+        </div>
+        <div class="text-xs text-gray-500 ml-2 w-5 text-right tabular-nums shrink-0">{{ product.stock_quantity }}</div>
+    </div>
+    {% endfor %}
+</div>
+
+<!-- Confirm bar -->
+<div class="fixed bottom-0 inset-x-0 z-40 bg-white border-t border-gray-200 px-3 pt-3 hidden" id="confirm-bar" style="padding-bottom: calc(0.75rem + env(safe-area-inset-bottom))">
+    <div class="max-w-lg mx-auto">
+        <p class="text-sm text-gray-500 mb-2" id="confirm-summary"></p>
+        <form method="POST" action="{{ url_for('withdrawal_confirm') }}" id="confirm-form">
+            <input type="hidden" name="reason" value="{{ reason }}">
+            <input type="hidden" name="custom_reason" value="{{ custom_reason or '' }}">
+            <input type="hidden" name="items" id="items-input" value="[]">
+            <button type="submit"
+                    class="w-full py-3.5 bg-emerald-700 text-white text-sm font-semibold rounded-xl hover:bg-emerald-800 active:bg-emerald-900">
+                Bevestig meename
+            </button>
+        </form>
+    </div>
+</div>
+
+<script>
+var selections = {};
+
+document.getElementById('select-list').addEventListener('click', function(e) {
+    var btn = e.target.closest('.step-minus, .step-plus');
+    if (!btn) return;
+    var row = btn.closest('.select-item');
+    var id = row.dataset.id;
+    var stock = parseInt(row.dataset.stock);
+    var cur = selections[id] || 0;
+    var delta = btn.classList.contains('step-plus') ? 1 : -1;
+    var next = cur + delta;
+    if (next < 0 || next > stock) return;
+
+    if (next === 0) {
+        delete selections[id];
+    } else {
+        selections[id] = next;
+    }
+    renderRow(row, id, stock);
+    updateConfirmBar();
+});
+
+function renderRow(row, id, stock) {
+    var val = selections[id] || 0;
+    row.querySelector('.step-val').textContent = val;
+    row.querySelector('.step-minus').disabled = (val === 0);
+    row.querySelector('.step-plus').disabled = (val >= stock);
+
+    if (val > 0) {
+        row.classList.remove('border-gray-200');
+        row.classList.add('border-gray-900', 'bg-gray-50');
+        row.querySelector('.step-val').classList.add('bg-gray-900', 'text-white');
+        row.querySelector('.step-val').classList.remove('bg-white');
+    } else {
+        row.classList.add('border-gray-200');
+        row.classList.remove('border-gray-900', 'bg-gray-50');
+        row.querySelector('.step-val').classList.remove('bg-gray-900', 'text-white');
+        row.querySelector('.step-val').classList.add('bg-white');
+    }
+}
+
+function updateConfirmBar() {
+    var bar = document.getElementById('confirm-bar');
+    var keys = Object.keys(selections);
+    var total = 0;
+    keys.forEach(function(k) { total += selections[k]; });
+
+    if (total > 0) {
+        bar.classList.remove('hidden');
+        document.getElementById('confirm-summary').innerHTML =
+            '<strong>' + total + ' fles' + (total !== 1 ? 'sen' : '') + '</strong> geselecteerd (' +
+            keys.length + ' soort' + (keys.length !== 1 ? 'en' : '') + ')';
+        // Build items array for form
+        var items = keys.map(function(k) { return { id: parseInt(k), qty: selections[k] }; });
+        document.getElementById('items-input').value = JSON.stringify(items);
+    } else {
+        bar.classList.add('hidden');
+    }
+}
+</script>
+{% endblock %}

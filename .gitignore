@@ -1,0 +1,20 @@
+# Python
+__pycache__/
+*.pyc
+venv/
+.venv/
+
+# Database
+*.db
+instance/
+
+# Secrets
+.env
+
+# OS / IDE
+.DS_Store
+.idea/
+
+# Claude (personal settings, not skills)
+.claude/settings.local.json
+.claude/skills/.claude/

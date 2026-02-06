@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block title %}Geregistreerd{% endblock %}
+{% block content %}
+<div class="min-h-[75vh] flex flex-col items-center justify-center text-center">
+    <div class="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center text-3xl mb-5">✓</div>
+    <h1 class="text-2xl font-semibold mb-2">Geregistreerd!</h1>
+    <div class="text-sm text-gray-500 leading-relaxed mb-8">
+        <p class="mb-2">
+            {{ withdrawal.total_bottles }} fles{{ 'sen' if withdrawal.total_bottles != 1 }} voor
+            <strong class="text-gray-900">{{ withdrawal.reason_display }}</strong>
+        </p>
+        {% for item in withdrawal.items %}
+        <p>{{ item.quantity }}&times; {{ item.product_name }}</p>
+        {% endfor %}
+    </div>
+    <a href="{{ url_for('inventory') }}"
+       class="px-8 py-3 bg-gray-900 text-white text-sm font-semibold rounded-xl hover:bg-gray-800 active:bg-gray-950">
+        Terug naar kelder
+    </a>
+</div>
+{% endblock %}
