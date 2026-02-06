@@ -1,0 +1,48 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          echo "${{ secrets.SSH_KNOWN_HOSTS }}" > ~/.ssh/known_hosts
+
+      - name: Upload files via rsync
+        run: |
+          rsync -avz --delete \
+            --exclude '.htaccess' \
+            --exclude '.git' \
+            --exclude '.gitignore' \
+            --exclude '__pycache__' \
+            --exclude '*.pyc' \
+            --exclude '.env' \
+            --exclude '*.db' \
+            --exclude 'deploy.sh' \
+            --exclude '.claude' \
+            --exclude '.venv' \
+            --exclude 'venv' \
+            --exclude '.idea' \
+            --exclude 'instance' \
+            --exclude 'CLAUDE.md' \
+            --exclude '.github' \
+            ./ deb112860@voorraad.hetgenietschap.eu:/home/deb112860/domains/voorraad.hetgenietschap.eu/public_html/
+
+      - name: Install dependencies and restart
+        run: |
+          ssh deb112860@voorraad.hetgenietschap.eu bash -s <<'EOF'
+            source /home/deb112860/virtualenv/domains/voorraad.hetgenietschap.eu/public_html/3.13/bin/activate
+            cd /home/deb112860/domains/voorraad.hetgenietschap.eu/public_html
+            pip install -q -r requirements.txt
+            mkdir -p tmp
+            touch tmp/restart.txt
+          EOF
