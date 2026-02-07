@@ -1,7 +1,7 @@
 import json
 import os
 import re
-from datetime import timedelta
+from datetime import date, timedelta
 
 from dotenv import load_dotenv
 from flask import (
@@ -16,7 +16,7 @@ from flask import (
 from werkzeug.security import check_password_hash
 
 from auth import admin_required, login_required
-from models import LogEntry, User, Withdrawal, WithdrawalItem, db
+from models import Booking, BookingAssignment, LogEntry, User, Withdrawal, WithdrawalItem, db
 from woo_client import get_product, get_products, start_sync, update_stock
 
 load_dotenv()
@@ -64,6 +64,49 @@ def parse_product_name(name):
 def brand_initials(house):
     """Return 2-letter initials for a brand/house name."""
     return _BRAND_INITIALS.get(house.lower().strip(), house[:2].upper())
+
+
+_AVATAR_COLORS = ["#5b7f67", "#7c6ca8", "#c0784e", "#4a8db7", "#b85c5c", "#8a7d6b"]
+
+_NL_MONTHS = [
+    "", "jan", "feb", "mrt", "apr", "mei", "jun",
+    "jul", "aug", "sep", "okt", "nov", "dec",
+]
+_NL_MONTHS_FULL = [
+    "", "januari", "februari", "maart", "april", "mei", "juni",
+    "juli", "augustus", "september", "oktober", "november", "december",
+]
+_NL_WEEKDAYS = ["ma", "di", "wo", "do", "vr", "za", "zo"]
+
+
+@app.template_global()
+def avatar_color(user_id):
+    """Return a consistent color for a user avatar."""
+    return _AVATAR_COLORS[user_id % len(_AVATAR_COLORS)]
+
+
+@app.template_global()
+def user_initials(display_name):
+    """Return first letter of display name."""
+    return display_name[0].upper() if display_name else "?"
+
+
+@app.template_global()
+def nl_month(d):
+    """Return Dutch abbreviated month for a date."""
+    return _NL_MONTHS[d.month].upper()
+
+
+@app.template_global()
+def nl_month_full(d):
+    """Return full Dutch month name for a date."""
+    return _NL_MONTHS_FULL[d.month]
+
+
+@app.template_global()
+def nl_weekday(d):
+    """Return Dutch abbreviated weekday for a date."""
+    return _NL_WEEKDAYS[d.weekday()]
 
 
 # --- Auth routes ---
@@ -304,6 +347,162 @@ def log():
         reason_filter=reason_filter,
         user_filter=user_filter,
     )
+
+
+# --- Agenda / Bookings ---
+
+
+@app.route("/agenda")
+@login_required
+def agenda():
+    today = date.today()
+    upcoming = (
+        Booking.query
+        .filter(Booking.date >= today)
+        .order_by(Booking.date.asc())
+        .all()
+    )
+    past = (
+        Booking.query
+        .filter(Booking.date < today)
+        .order_by(Booking.date.desc())
+        .all()
+    )
+    users = User.query.order_by(User.display_name).all()
+    return render_template("agenda.html", upcoming=upcoming, past=past, users=users, today=today)
+
+
+@app.route("/agenda/nieuw", methods=["GET", "POST"])
+@login_required
+def agenda_new():
+    if request.method == "POST":
+        client_name = request.form.get("client_name", "").strip()
+        if not client_name:
+            flash("Klantnaam is verplicht.", "error")
+            return redirect(url_for("agenda_new"))
+
+        date_str = request.form.get("date", "").strip()
+        if not date_str:
+            flash("Datum is verplicht.", "error")
+            return redirect(url_for("agenda_new"))
+
+        try:
+            booking_date = date.fromisoformat(date_str)
+        except ValueError:
+            flash("Ongeldige datum.", "error")
+            return redirect(url_for("agenda_new"))
+
+        booking_type = request.form.get("booking_type", "proeverij")
+        if booking_type == "proeverij":
+            location = request.form.get("location", "").strip() or None
+        else:
+            location = None
+
+        booking = Booking(
+            booking_type=booking_type,
+            client_name=client_name,
+            client_phone=request.form.get("client_phone", "").strip() or None,
+            date=booking_date,
+            time_description=request.form.get("time_description", "").strip() or None,
+            group_size=request.form.get("group_size", "").strip() or None,
+            location=location,
+            notes=request.form.get("notes", "").strip() or None,
+            created_by=session["user_id"],
+        )
+        db.session.add(booking)
+        db.session.flush()
+
+        member_ids = request.form.getlist("members")
+        for uid in member_ids:
+            db.session.add(BookingAssignment(booking_id=booking.id, user_id=int(uid)))
+
+        db.session.commit()
+        flash("Boeking aangemaakt.", "success")
+        return redirect(url_for("agenda"))
+
+    users = User.query.order_by(User.display_name).all()
+    return render_template("booking_form.html", booking=None, users=users)
+
+
+@app.route("/agenda/<int:booking_id>/bewerk", methods=["GET", "POST"])
+@login_required
+def agenda_edit(booking_id):
+    booking = Booking.query.get_or_404(booking_id)
+
+    if request.method == "POST":
+        client_name = request.form.get("client_name", "").strip()
+        if not client_name:
+            flash("Klantnaam is verplicht.", "error")
+            return redirect(url_for("agenda_edit", booking_id=booking_id))
+
+        date_str = request.form.get("date", "").strip()
+        if not date_str:
+            flash("Datum is verplicht.", "error")
+            return redirect(url_for("agenda_edit", booking_id=booking_id))
+
+        try:
+            booking_date = date.fromisoformat(date_str)
+        except ValueError:
+            flash("Ongeldige datum.", "error")
+            return redirect(url_for("agenda_edit", booking_id=booking_id))
+
+        booking_type = request.form.get("booking_type", "proeverij")
+        if booking_type == "proeverij":
+            location = request.form.get("location", "").strip() or None
+        else:
+            location = None
+
+        booking.booking_type = booking_type
+        booking.client_name = client_name
+        booking.client_phone = request.form.get("client_phone", "").strip() or None
+        booking.date = booking_date
+        booking.time_description = request.form.get("time_description", "").strip() or None
+        booking.group_size = request.form.get("group_size", "").strip() or None
+        booking.location = location
+        booking.notes = request.form.get("notes", "").strip() or None
+
+        BookingAssignment.query.filter_by(booking_id=booking.id).delete()
+        member_ids = request.form.getlist("members")
+        for uid in member_ids:
+            db.session.add(BookingAssignment(booking_id=booking.id, user_id=int(uid)))
+
+        db.session.commit()
+        flash("Boeking bijgewerkt.", "success")
+        return redirect(url_for("agenda"))
+
+    users = User.query.order_by(User.display_name).all()
+    return render_template("booking_form.html", booking=booking, users=users)
+
+
+@app.route("/agenda/<int:booking_id>/verwijder", methods=["POST"])
+@login_required
+def agenda_delete(booking_id):
+    booking = Booking.query.get_or_404(booking_id)
+    db.session.delete(booking)
+    db.session.commit()
+    flash("Boeking verwijderd.", "success")
+    return redirect(url_for("agenda"))
+
+
+@app.route("/agenda/<int:booking_id>/opgeven", methods=["POST"])
+@login_required
+def agenda_assign(booking_id):
+    booking = Booking.query.get_or_404(booking_id)
+    user_id = int(request.form.get("user_id", session["user_id"]))
+
+    existing = BookingAssignment.query.filter_by(
+        booking_id=booking_id, user_id=user_id
+    ).first()
+
+    if existing:
+        db.session.delete(existing)
+        db.session.commit()
+    else:
+        assignment = BookingAssignment(booking_id=booking_id, user_id=user_id)
+        db.session.add(assignment)
+        db.session.commit()
+
+    return redirect(url_for("agenda"))
 
 
 # --- Undo withdrawal (admin only) ---

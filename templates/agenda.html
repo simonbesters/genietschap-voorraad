@@ -1,0 +1,175 @@
+{% extends "base.html" %}
+{% block title %}Boekingen{% endblock %}
+{% block content %}
+<div class="text-2xl font-bold mb-4">Boekingen</div>
+
+{% if upcoming %}
+{% set ns = namespace(current_month='') %}
+<div class="space-y-2 pb-24">
+    {% for b in upcoming %}
+    {% set month_key = nl_month(b.date) ~ ' ' ~ b.date.year %}
+    {% if month_key != ns.current_month %}
+        {% set ns.current_month = month_key %}
+        <div class="text-[13px] font-semibold text-gray-400 uppercase tracking-wide pt-3 pb-1">{{ month_key }}</div>
+    {% endif %}
+
+    <div class="bg-white rounded-xl overflow-hidden">
+        <!-- Main row: date + body -->
+        <div class="flex">
+            <!-- Date column -->
+            <div class="w-[62px] shrink-0 flex flex-col items-center justify-center py-3 border-r border-gray-100">
+                <div class="text-[11px] font-bold uppercase tracking-wide text-amber-600">{{ nl_month(b.date) }}</div>
+                <div class="text-[26px] font-bold leading-tight">{{ b.date.day }}</div>
+                <div class="text-[11px] text-gray-400">{{ nl_weekday(b.date) }}</div>
+            </div>
+
+            <!-- Body -->
+            <div class="flex-1 min-w-0 px-3.5 py-3">
+                <div class="flex items-center gap-1.5 mb-1">
+                    <span class="inline-block text-[11px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded {% if b.booking_type == 'proeverij' %}bg-amber-50 text-amber-700{% elif b.booking_type == 'vaartocht' %}bg-blue-50 text-blue-600{% else %}bg-gray-100 text-gray-500{% endif %}">{{ b.type_display }}</span>
+                    {% if b.is_voorlopig %}
+                    <span class="inline-block text-[11px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded bg-orange-50 text-orange-500 border border-orange-200">Voorlopig</span>
+                    {% endif %}
+                </div>
+                <div class="font-semibold text-[15px] truncate mb-1">{{ b.client_name }}</div>
+                <div class="flex flex-wrap gap-x-2.5 gap-y-0.5 text-[13px] text-gray-500">
+                    {% if b.time_description %}
+                    <span>{{ b.time_description }}</span>
+                    {% endif %}
+                    {% if b.group_size %}
+                    <span>{{ b.group_size }}</span>
+                    {% endif %}
+                    {% if b.location %}<span>{{ b.location }}</span>{% endif %}
+                </div>
+                {% if b.notes %}
+                <div class="text-xs text-gray-400 mt-1 truncate">{{ b.notes }}</div>
+                {% endif %}
+            </div>
+
+            <!-- Actions -->
+            <div class="flex items-start gap-1 pt-3 pr-3 shrink-0">
+                <a href="{{ url_for('agenda_edit', booking_id=b.id) }}"
+                   class="text-gray-300 hover:text-gray-600 p-1" title="Bewerken">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
+                </a>
+                <form method="POST" action="{{ url_for('agenda_delete', booking_id=b.id) }}"
+                      onsubmit="return confirm('Boeking verwijderen?')">
+                    <button type="submit" class="text-gray-300 hover:text-red-500 p-1" title="Verwijderen">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M6 18L18 6M6 6l12 12"/></svg>
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        <!-- Crew footer -->
+        <div class="flex items-center flex-wrap gap-2 px-3.5 py-2.5 border-t border-gray-50 bg-gray-50/50">
+            {% for user in b.assigned_users %}
+            <form method="POST" action="{{ url_for('agenda_assign', booking_id=b.id) }}" class="inline">
+                <input type="hidden" name="user_id" value="{{ user.id }}">
+                <button type="submit" class="flex items-center gap-1.5 group" title="Klik om {{ user.display_name }} af te melden">
+                    <span class="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold text-white" style="background:{{ avatar_color(user.id) }}">{{ user_initials(user.display_name) }}</span>
+                    <span class="text-[13px] font-medium group-hover:line-through">{{ user.display_name }}</span>
+                </button>
+            </form>
+            {% endfor %}
+
+            {% set current_assigned = b.assigned_users|map(attribute='id')|list %}
+            {% if session.get('user_id') not in current_assigned %}
+            <form method="POST" action="{{ url_for('agenda_assign', booking_id=b.id) }}" class="inline">
+                <input type="hidden" name="user_id" value="{{ session.get('user_id') }}">
+                <button type="submit" class="text-[13px] text-gray-400 border border-dashed border-gray-300 rounded-full px-2.5 py-0.5 hover:bg-gray-100 hover:text-gray-600">+ Ik doe mee</button>
+            </form>
+            {% endif %}
+
+            {% set assigned_ids = b.assigned_users|map(attribute='id')|list %}
+            {% set available = users|rejectattr('id', 'in', assigned_ids)|list %}
+            {% if available %}
+            <div class="relative" x-data="{ open: false }">
+                <button @click="open = !open" type="button" class="text-[13px] text-gray-300 border border-dashed border-gray-200 rounded-full px-2 py-0.5 hover:bg-gray-100 hover:text-gray-500">+ Lid</button>
+                <div x-show="open" @click.outside="open = false" x-cloak
+                     class="absolute left-0 top-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg z-20 py-1 min-w-[150px]">
+                    {% for u in available %}
+                    <form method="POST" action="{{ url_for('agenda_assign', booking_id=b.id) }}">
+                        <input type="hidden" name="user_id" value="{{ u.id }}">
+                        <button type="submit" class="flex items-center gap-2 w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-50">
+                            <span class="w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-bold text-white" style="background:{{ avatar_color(u.id) }}">{{ user_initials(u.display_name) }}</span>
+                            {{ u.display_name }}
+                        </button>
+                    </form>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+
+            {% if b.is_voorlopig %}
+            {% set needed = b.min_crew - b.assigned_users|length %}
+            <span class="text-[12px] text-orange-400 ml-auto">nog {{ needed }} nodig</span>
+            {% endif %}
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<p class="text-gray-400 text-center py-16">Geen aankomende boekingen.</p>
+{% endif %}
+
+{% if past %}
+<details class="mb-4 -mt-20">
+    <summary class="text-sm text-gray-400 cursor-pointer hover:text-gray-600 mb-3">Afgelopen boekingen ({{ past|length }})</summary>
+    <div class="space-y-2 opacity-50">
+        {% for b in past %}
+        <div class="bg-white rounded-xl overflow-hidden">
+            <div class="flex">
+                <div class="w-[62px] shrink-0 flex flex-col items-center justify-center py-3 border-r border-gray-100">
+                    <div class="text-[11px] font-bold uppercase tracking-wide text-gray-400">{{ nl_month(b.date) }}</div>
+                    <div class="text-[26px] font-bold leading-tight">{{ b.date.day }}</div>
+                    <div class="text-[11px] text-gray-400">{{ nl_weekday(b.date) }}</div>
+                </div>
+                <div class="flex-1 min-w-0 px-3.5 py-3">
+                    <span class="inline-block text-[11px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded mb-1 {% if b.booking_type == 'proeverij' %}bg-amber-50 text-amber-700{% elif b.booking_type == 'vaartocht' %}bg-blue-50 text-blue-600{% else %}bg-gray-100 text-gray-500{% endif %}">{{ b.type_display }}</span>
+                    <div class="font-semibold text-[15px] truncate mb-1">{{ b.client_name }}</div>
+                    <div class="flex flex-wrap gap-x-2.5 gap-y-0.5 text-[13px] text-gray-500">
+                        {% if b.time_description %}<span>{{ b.time_description }}</span>{% endif %}
+                        {% if b.location %}<span>{{ b.location }}</span>{% endif %}
+                    </div>
+                </div>
+                <div class="flex items-start gap-1 pt-3 pr-3 shrink-0">
+                    <a href="{{ url_for('agenda_edit', booking_id=b.id) }}" class="text-gray-300 hover:text-gray-600 p-1" title="Bewerken">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
+                    </a>
+                    <form method="POST" action="{{ url_for('agenda_delete', booking_id=b.id) }}" onsubmit="return confirm('Boeking verwijderen?')">
+                        <button type="submit" class="text-gray-300 hover:text-red-500 p-1" title="Verwijderen">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M6 18L18 6M6 6l12 12"/></svg>
+                        </button>
+                    </form>
+                </div>
+            </div>
+            {% if b.assigned_users %}
+            <div class="flex items-center gap-2 px-3.5 py-2 border-t border-gray-50 bg-gray-50/50">
+                {% for user in b.assigned_users %}
+                <div class="flex items-center gap-1.5">
+                    <span class="w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-bold text-white" style="background:{{ avatar_color(user.id) }}">{{ user_initials(user.display_name) }}</span>
+                    <span class="text-[12px] text-gray-500">{{ user.display_name }}</span>
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+</details>
+{% endif %}
+
+<!-- Fixed CTA -->
+<div class="fixed bottom-0 inset-x-0 z-40 pointer-events-none" style="padding-bottom: env(safe-area-inset-bottom)">
+    <div class="max-w-lg mx-auto px-3 pb-4 pt-8 bg-gradient-to-t from-gray-50 via-gray-50/80 to-transparent">
+        <a href="{{ url_for('agenda_new') }}"
+           class="pointer-events-auto block w-full py-4 bg-gray-900 text-white text-center text-base font-semibold rounded-xl hover:bg-gray-800 active:bg-black shadow-lg">
+            + Nieuwe boeking
+        </a>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
+<style>[x-cloak] { display: none !important; }</style>
+{% endblock %}
