@@ -17,7 +17,7 @@ from werkzeug.security import check_password_hash
 
 from auth import admin_required, login_required
 from models import Booking, BookingAssignment, LogEntry, User, Withdrawal, WithdrawalItem, db
-from woo_client import get_product, get_products, start_sync, update_stock
+from woo_client import get_product, get_products, queue_stock_update, start_sync, update_stock
 
 load_dotenv()
 
@@ -235,7 +235,7 @@ def withdrawal_confirm():
                 continue
 
             new_stock = product["stock_quantity"] - quantity
-            update_stock(product_id, new_stock)
+            queue_stock_update(product_id, new_stock)
 
             withdrawal.items.append(WithdrawalItem(
                 woo_product_id=product_id,
@@ -297,7 +297,7 @@ def delivery():
 
                 product = get_product(product_id)
                 new_stock = product["stock_quantity"] + quantity
-                update_stock(product_id, new_stock)
+                queue_stock_update(product_id, new_stock)
 
                 entry = LogEntry(
                     woo_product_id=product_id,
@@ -516,7 +516,7 @@ def undo_withdrawal(withdrawal_id):
         for item in withdrawal.items:
             product = get_product(item.woo_product_id)
             new_stock = product["stock_quantity"] + item.quantity
-            update_stock(item.woo_product_id, new_stock)
+            queue_stock_update(item.woo_product_id, new_stock)
 
         total = withdrawal.total_bottles
         db.session.delete(withdrawal)
