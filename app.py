@@ -179,8 +179,11 @@ def withdrawal_select():
         flash(f"Kon producten niet ophalen: {e}", "error")
         products = []
 
-    # Only show in-stock products
-    in_stock = [p for p in products if p.get("stock_quantity") and p["stock_quantity"] > 0]
+    # Only show in-stock products, sorted by name
+    in_stock = sorted(
+        [p for p in products if p.get("stock_quantity") and p["stock_quantity"] > 0],
+        key=lambda p: p["name"].lower(),
+    )
 
     return render_template(
         "selection.html",

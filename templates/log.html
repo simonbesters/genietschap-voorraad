@@ -39,7 +39,7 @@
         </div>
         <span class="inline-block text-[0.65rem] font-semibold uppercase tracking-wide bg-gray-100 text-gray-600 px-2 py-0.5 rounded mb-2">{{ w.reason_display }}</span>
         <div class="text-sm text-gray-500 leading-relaxed">
-            {% for item in w.items %}
+            {% for item in w.items|sort(attribute='product_name') %}
             <div><span class="text-gray-900 font-medium">{{ item.quantity }}&times;</span> {{ item.product_name }}</div>
             {% endfor %}
         </div>
