@@ -22,7 +22,7 @@ class User(db.Model):
 
 
 class LogEntry(db.Model):
-    """Used for deliveries (levering) only."""
+    """Used for deliveries (levering) and stock corrections (correctie)."""
     __tablename__ = "log_entries"
 
     id = db.Column(db.Integer, primary_key=True)

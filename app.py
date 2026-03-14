@@ -152,6 +152,7 @@ def inventory():
     except Exception as e:
         flash(f"Kon producten niet ophalen uit WooCommerce: {e}", "error")
         products = []
+    products = sorted(products, key=lambda p: p["name"].lower())
     return render_template("inventory.html", products=products)
 
 
@@ -322,6 +323,80 @@ def delivery():
             flash(f"Fout bij registreren: {e}", "error")
 
     return render_template("delivery.html", products=products)
+
+
+# --- Correction ---
+
+
+@app.route("/correctie", methods=["GET", "POST"])
+@admin_required
+def correction():
+    try:
+        products = get_products()
+    except Exception as e:
+        flash(f"Kon producten niet ophalen: {e}", "error")
+        products = []
+
+    products = sorted(products, key=lambda p: p["name"].lower())
+
+    if request.method == "POST":
+        items_json = request.form.get("items", "[]")
+        note = request.form.get("note", "").strip() or None
+
+        try:
+            items = json.loads(items_json)
+        except (json.JSONDecodeError, TypeError):
+            flash("Ongeldige selectie.", "error")
+            return render_template("correction.html", products=products)
+
+        if not items:
+            flash("Geen producten gewijzigd.", "error")
+            return render_template("correction.html", products=products)
+
+        try:
+            total_plus = 0
+            total_minus = 0
+            for item in items:
+                product_id = int(item["id"])
+                new_qty = int(item["qty"])
+                product = get_product(product_id)
+                old_qty = product["stock_quantity"] or 0
+                delta = new_qty - old_qty
+
+                if delta == 0:
+                    continue
+
+                queue_stock_update(product_id, new_qty)
+
+                entry = LogEntry(
+                    woo_product_id=product_id,
+                    product_name=product["name"],
+                    user_id=session["user_id"],
+                    quantity=delta,
+                    category="correctie",
+                    note=note,
+                )
+                db.session.add(entry)
+
+                if delta > 0:
+                    total_plus += delta
+                else:
+                    total_minus += abs(delta)
+
+            db.session.commit()
+            parts = []
+            if total_plus:
+                parts.append(f"+{total_plus}")
+            if total_minus:
+                parts.append(f"−{total_minus}")
+            flash(f"Correctie verwerkt: {', '.join(parts)} flessen.", "success")
+            return redirect(url_for("correction"))
+
+        except Exception as e:
+            db.session.rollback()
+            flash(f"Fout bij correctie: {e}", "error")
+
+    return render_template("correction.html", products=products)
 
 
 # --- Log ---
