@@ -6,30 +6,60 @@
 <p class="text-sm text-gray-400 mb-6">{% if booking %}Pas de gegevens aan{% else %}Plan een proeverij of vaartocht in.{% endif %}</p>
 
 <form method="POST" class="space-y-5 pb-8">
-    <!-- Type keuze -->
+    <!-- Type keuze (2x2 grid) -->
     {% set current_type = booking.booking_type if booking else 'proeverij' %}
-    <div class="flex gap-2.5" id="type-selector">
-        <label class="flex-1 cursor-pointer">
-            <input type="radio" name="booking_type" value="proeverij" class="sr-only type-radio" {% if current_type == 'proeverij' %}checked{% endif %}>
-            <div class="type-card flex flex-col items-center py-4 border-2 rounded-xl transition-colors">
-                <span class="text-2xl mb-1">&#127863;</span>
-                <span class="text-sm font-semibold">Proeverij</span>
-            </div>
-        </label>
-        <label class="flex-1 cursor-pointer">
-            <input type="radio" name="booking_type" value="vaartocht" class="sr-only type-radio" {% if current_type == 'vaartocht' %}checked{% endif %}>
-            <div class="type-card flex flex-col items-center py-4 border-2 rounded-xl transition-colors">
-                <span class="text-2xl mb-1">&#9973;</span>
-                <span class="text-sm font-semibold">Vaartocht</span>
-            </div>
-        </label>
-        <label class="flex-1 cursor-pointer">
-            <input type="radio" name="booking_type" value="zelfvaren" class="sr-only type-radio" {% if current_type == 'zelfvaren' %}checked{% endif %}>
-            <div class="type-card flex flex-col items-center py-4 border-2 rounded-xl transition-colors">
-                <span class="text-2xl mb-1">&#9875;</span>
-                <span class="text-sm font-semibold">Zelf varen</span>
-            </div>
-        </label>
+    <div>
+        <label class="block text-sm font-semibold text-gray-700 mb-1.5">Type <span class="text-red-400">*</span></label>
+        <div class="grid grid-cols-2 gap-2.5" id="type-selector">
+            <label class="cursor-pointer">
+                <input type="radio" name="booking_type" value="proeverij" class="sr-only type-radio" {% if current_type == 'proeverij' %}checked{% endif %}>
+                <div class="type-card flex flex-col items-center py-4 border-2 rounded-xl transition-colors">
+                    <span class="text-2xl mb-1">&#127863;</span>
+                    <span class="text-sm font-semibold">Proeverij</span>
+                </div>
+            </label>
+            <label class="cursor-pointer">
+                <input type="radio" name="booking_type" value="vaartocht_met_drank" class="sr-only type-radio" {% if current_type == 'vaartocht_met_drank' %}checked{% endif %}>
+                <div class="type-card flex flex-col items-center py-4 border-2 rounded-xl transition-colors">
+                    <span class="text-2xl mb-1">&#9973;&#127864;</span>
+                    <span class="text-sm font-semibold">Vaartocht + proeverij</span>
+                </div>
+            </label>
+            <label class="cursor-pointer">
+                <input type="radio" name="booking_type" value="vaartocht_zonder_drank" class="sr-only type-radio" {% if current_type == 'vaartocht_zonder_drank' %}checked{% endif %}>
+                <div class="type-card flex flex-col items-center py-4 border-2 rounded-xl transition-colors">
+                    <span class="text-2xl mb-1">&#9973;</span>
+                    <span class="text-sm font-semibold">Vaartocht</span>
+                </div>
+            </label>
+            <label class="cursor-pointer">
+                <input type="radio" name="booking_type" value="zelfvaren" class="sr-only type-radio" {% if current_type == 'zelfvaren' %}checked{% endif %}>
+                <div class="type-card flex flex-col items-center py-4 border-2 rounded-xl transition-colors">
+                    <span class="text-2xl mb-1">&#9875;</span>
+                    <span class="text-sm font-semibold">Zelf varen</span>
+                </div>
+            </label>
+        </div>
+    </div>
+
+    <!-- Status -->
+    {% set current_status = booking.status if booking else 'offerte' %}
+    <div>
+        <label class="block text-sm font-semibold text-gray-700 mb-1.5">Status</label>
+        <div class="flex gap-2">
+            <label class="cursor-pointer">
+                <input type="radio" name="status" value="offerte" class="sr-only status-radio" {% if current_status == 'offerte' %}checked{% endif %}>
+                <span class="status-pill inline-block px-4 py-2 text-sm rounded-full border transition-colors">Offerte</span>
+            </label>
+            <label class="cursor-pointer">
+                <input type="radio" name="status" value="bevestigd" class="sr-only status-radio" {% if current_status == 'bevestigd' %}checked{% endif %}>
+                <span class="status-pill inline-block px-4 py-2 text-sm rounded-full border transition-colors">Bevestigd</span>
+            </label>
+            <label class="cursor-pointer">
+                <input type="radio" name="status" value="voorlopig" class="sr-only status-radio" {% if current_status == 'voorlopig' %}checked{% endif %}>
+                <span class="status-pill inline-block px-4 py-2 text-sm rounded-full border transition-colors">Voorlopig</span>
+            </label>
+        </div>
     </div>
 
     <!-- Klant -->
@@ -37,7 +67,7 @@
         <label class="block text-sm font-semibold text-gray-700 mb-1.5">Klant <span class="text-red-400">*</span></label>
         <input type="text" name="client_name" required
                value="{{ booking.client_name if booking else '' }}"
-               placeholder="Naam klant"
+               placeholder="Naam klant of bedrijf"
                class="w-full px-3.5 py-3 text-[15px] border border-gray-200 rounded-[10px] bg-white focus:outline-none focus:border-gray-900 placeholder:text-gray-300">
     </div>
 
@@ -76,8 +106,17 @@
                class="w-full px-3.5 py-3 text-[15px] border border-gray-200 rounded-[10px] bg-white focus:outline-none focus:border-gray-900 placeholder:text-gray-300">
     </div>
 
+    <!-- Prijs -->
+    <div>
+        <label class="block text-sm font-semibold text-gray-700 mb-1.5">Prijs</label>
+        <input type="text" name="price"
+               value="{{ booking.price if booking and booking.price else '' }}"
+               placeholder="Bijv. &euro;250 of &euro;35 p.p."
+               class="w-full px-3.5 py-3 text-[15px] border border-gray-200 rounded-[10px] bg-white focus:outline-none focus:border-gray-900 placeholder:text-gray-300">
+    </div>
+
     <!-- Locatie (alleen voor proeverij) -->
-    <div id="location-section" {% if (booking and booking.booking_type != 'proeverij') or (not booking and current_type != 'proeverij') %}class="hidden"{% endif %}>
+    <div id="location-section" {% if current_type != 'proeverij' %}class="hidden"{% endif %}>
         <label class="block text-sm font-semibold text-gray-700 mb-1.5">Locatie</label>
         <input type="text" name="location"
                value="{{ booking.location if booking and booking.location else '' }}"
@@ -88,7 +127,7 @@
     <!-- Crew -->
     <div>
         <label class="block text-sm font-semibold text-gray-700 mb-1">Crew</label>
-        <p class="text-xs text-gray-400 mb-2">Wie van het Genietschap is erbij?</p>
+        <p class="text-xs text-gray-400 mb-2" id="crew-hint">Wie van het Genietschap is erbij?</p>
         {% set assigned_ids = booking.assigned_users|map(attribute='id')|list if booking else [] %}
         <div class="flex flex-wrap gap-2">
             {% for u in users %}
@@ -130,6 +169,31 @@
     background: white;
 }
 
+/* Status pill styling */
+.status-radio:not(:checked) + .status-pill {
+    border-color: #e5e5ea;
+    background: white;
+    color: #6b7280;
+}
+.status-radio[value="offerte"]:checked + .status-pill {
+    background: #f0f1f3;
+    border-color: #9ca3af;
+    color: #6b7280;
+    font-weight: 600;
+}
+.status-radio[value="bevestigd"]:checked + .status-pill {
+    background: #ecfdf5;
+    border-color: #059669;
+    color: #059669;
+    font-weight: 600;
+}
+.status-radio[value="voorlopig"]:checked + .status-pill {
+    background: #fff7ed;
+    border-color: #ea580c;
+    color: #ea580c;
+    font-weight: 600;
+}
+
 /* Member toggle styling */
 .member-cb:checked + .member-pill {
     border-color: #2d6a4f;
@@ -148,10 +212,16 @@
 document.querySelectorAll('input[name="booking_type"]').forEach(function(radio) {
     radio.addEventListener('change', function() {
         var loc = document.getElementById('location-section');
+        var hint = document.getElementById('crew-hint');
         if (this.value === 'proeverij') {
             loc.classList.remove('hidden');
         } else {
             loc.classList.add('hidden');
+        }
+        if (this.value.startsWith('vaartocht')) {
+            hint.textContent = 'Vaartocht: altijd 2 personen nodig';
+        } else {
+            hint.textContent = 'Wie van het Genietschap is erbij?';
         }
     });
 });

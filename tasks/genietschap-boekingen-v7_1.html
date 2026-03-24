@@ -1,0 +1,486 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Genietschap — Boekingen</title>
+<style>
+  :root {
+    --bg: #f4f5f7;
+    --surface: #ffffff;
+    --text: #1a1a2e;
+    --text-secondary: #6b7280;
+    --border: #e5e7eb;
+    --chip-active-bg: #1a1a2e;
+    --chip-active-text: #ffffff;
+    --badge-bg: #f0f1f3;
+    --badge-text: #4a4a5a;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  body {
+    font-family: -apple-system, 'SF Pro Text', system-ui, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    max-width: 420px;
+    margin: 0 auto;
+    min-height: 100vh;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* NAV */
+  .nav {
+    display: flex; align-items: center;
+    padding: 12px 16px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    position: sticky; top: 0; z-index: 100;
+    gap: 12px;
+  }
+  .nav-logo {
+    width: 44px; height: 44px; border-radius: 6px;
+    background: linear-gradient(135deg, #f5e6c8, #e8d4a8);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 13px; font-style: italic; font-weight: 600;
+    color: #6b5a3a; flex-shrink: 0;
+  }
+  .nav-links { display: flex; gap: 16px; font-size: 15px; color: var(--text-secondary); }
+  .nav-links span { cursor: pointer; }
+  .nav-links span.active { color: var(--text); font-weight: 600; }
+
+  .screen { display: none; }
+  .screen.active { display: block; }
+
+  .page-title { font-size: 26px; font-weight: 700; padding: 20px 20px 12px; letter-spacing: -0.3px; }
+
+  /* CHIPS — exact logboek match */
+  .chips { display: flex; gap: 8px; padding: 0 20px 16px; flex-wrap: wrap; }
+  .chip {
+    padding: 8px 18px; border-radius: 22px; font-size: 15px; font-family: inherit;
+    border: 1px solid var(--border); background: var(--surface); color: var(--text);
+    cursor: pointer; font-weight: 400;
+  }
+  .chip.active { background: var(--chip-active-bg); color: var(--chip-active-text); border-color: var(--chip-active-bg); font-weight: 500; }
+
+  /* CARD — logboek style */
+  .card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 12px; margin: 0 20px 10px; overflow: hidden;
+  }
+  .card:active { opacity: 0.85; }
+
+  .booking-inner { padding: 16px 18px; cursor: pointer; }
+
+  .booking-header {
+    display: flex; align-items: baseline; justify-content: space-between;
+    margin-bottom: 8px;
+  }
+  .booking-name { font-size: 17px; font-weight: 600; letter-spacing: -0.2px; }
+  .booking-date-text { font-size: 14px; color: var(--text-secondary); flex-shrink: 0; margin-left: 8px; }
+
+  /* BADGES ROW */
+  .badges { display: flex; gap: 6px; margin-bottom: 8px; flex-wrap: wrap; }
+  .badge {
+    display: inline-block; font-size: 12px; font-weight: 600;
+    text-transform: uppercase; letter-spacing: 0.4px;
+    padding: 3px 10px; border-radius: 6px;
+  }
+  .badge-type { background: var(--badge-bg); color: var(--badge-text); }
+  .badge-offerte { background: #f0f1f3; color: #6b7280; }
+  .badge-bevestigd { background: #ecfdf5; color: #059669; }
+  .badge-voorlopig { background: #fff7ed; color: #ea580c; }
+
+  .booking-meta {
+    display: flex; gap: 14px; flex-wrap: wrap;
+    font-size: 14px; color: var(--text-secondary); line-height: 1.6;
+  }
+
+  .booking-crew {
+    display: flex; align-items: center; gap: 8px;
+    padding: 10px 18px; border-top: 1px solid var(--border); background: #fafbfc;
+  }
+  .crew-member { display: flex; align-items: center; gap: 6px; }
+  .crew-av {
+    width: 26px; height: 26px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 11px; font-weight: 700; color: white; flex-shrink: 0;
+  }
+  .crew-name { font-size: 14px; color: var(--text-secondary); }
+  .crew-sep { color: #d1d5db; font-size: 11px; }
+  .crew-warning { font-size: 13px; color: #ea580c; margin-left: auto; }
+
+  .list-pad { padding-bottom: 110px; }
+
+  /* CTA */
+  .cta-wrap {
+    position: fixed; bottom: 0; left: 50%; transform: translateX(-50%);
+    max-width: 420px; width: 100%;
+    padding: 10px 20px 28px;
+    background: linear-gradient(transparent, var(--bg) 35%);
+    z-index: 90;
+  }
+  .cta-btn {
+    width: 100%; padding: 16px;
+    background: var(--chip-active-bg); color: white;
+    border: none; border-radius: 14px;
+    font-family: inherit; font-size: 17px; font-weight: 600;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+  }
+  .cta-btn:active { opacity: 0.9; }
+
+  /* FORM */
+  .form-wrap { padding: 0 20px 40px; }
+  .back-link {
+    display: inline-block; padding: 14px 0;
+    font-size: 15px; color: var(--text-secondary);
+    background: none; border: none; font-family: inherit; cursor: pointer;
+  }
+  .form-title { font-size: 26px; font-weight: 700; letter-spacing: -0.3px; margin-bottom: 4px; }
+  .form-sub { font-size: 15px; color: var(--text-secondary); margin-bottom: 24px; }
+
+  .field { margin-bottom: 16px; }
+  .field-label { display: block; font-size: 14px; font-weight: 600; margin-bottom: 6px; }
+  .field-label .req { color: #e53935; }
+  .field-hint { font-size: 13px; color: var(--text-secondary); margin-top: 2px; }
+
+  .field-input, .field-textarea {
+    width: 100%; padding: 14px 16px;
+    border: 1px solid var(--border); border-radius: 10px;
+    font-family: inherit; font-size: 16px;
+    background: var(--surface); outline: none; color: var(--text);
+  }
+  .field-input:focus, .field-textarea:focus { border-color: #9ca3af; }
+  .field-input::placeholder, .field-textarea::placeholder { color: #c7c7cc; }
+  .field-textarea { resize: vertical; min-height: 80px; }
+  .field-row { display: flex; gap: 10px; }
+  .field-row .field { flex: 1; }
+
+  /* TYPE CARDS */
+  .type-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 24px; }
+  .type-card {
+    padding: 14px 10px; text-align: center; cursor: pointer;
+    border: 1px solid var(--border); border-radius: 12px; background: var(--surface);
+  }
+  .type-card.sel { border-color: var(--text); border-width: 2px; }
+  .type-card-icon { font-size: 22px; margin-bottom: 2px; }
+  .type-card-label { font-size: 14px; font-weight: 600; line-height: 1.3; }
+
+  /* STATUS RADIO */
+  .status-opts { display: flex; gap: 8px; flex-wrap: wrap; }
+  .status-opt {
+    padding: 8px 16px; border-radius: 22px; font-size: 14px; font-family: inherit;
+    border: 1px solid var(--border); background: var(--surface);
+    cursor: pointer; font-weight: 400;
+  }
+  .status-opt.sel-offerte { background: #f0f1f3; border-color: #9ca3af; font-weight: 600; color: #6b7280; }
+  .status-opt.sel-bevestigd { background: #ecfdf5; border-color: #059669; font-weight: 600; color: #059669; }
+  .status-opt.sel-voorlopig { background: #fff7ed; border-color: #ea580c; font-weight: 600; color: #ea580c; }
+
+  /* PILLS */
+  .pills { display: flex; gap: 8px; flex-wrap: wrap; }
+  .pill {
+    padding: 10px 18px; border: 1px solid var(--border); border-radius: 10px;
+    font-size: 15px; font-family: inherit; background: var(--surface); cursor: pointer;
+  }
+  .pill.sel { border-color: var(--text); border-width: 2px; font-weight: 600; }
+
+  .members { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+  .mem-toggle {
+    display: flex; align-items: center; gap: 8px;
+    padding: 8px 14px; border: 1px solid var(--border); border-radius: 10px;
+    font-size: 14px; font-family: inherit; background: var(--surface);
+    cursor: pointer; user-select: none;
+  }
+  .mem-toggle.sel { border-color: #2d6a4f; background: #ecf5ec; color: #2d6a4f; font-weight: 600; }
+
+  .submit-btn {
+    width: 100%; padding: 16px;
+    background: var(--chip-active-bg); color: white; border: none;
+    border-radius: 14px; font-family: inherit; font-size: 17px;
+    font-weight: 600; cursor: pointer; margin-top: 8px;
+  }
+  .cancel-link { display: block; text-align: center; margin-top: 14px; font-size: 15px; color: var(--text-secondary); cursor: pointer; }
+
+  /* DETAIL */
+  .detail-wrap { padding: 0 20px 40px; }
+  .detail-hero { text-align: center; padding: 16px 0 20px; }
+  .detail-day-big { font-size: 52px; font-weight: 700; line-height: 1; }
+  .detail-date-sub { font-size: 15px; color: var(--text-secondary); margin-top: 2px; }
+  .detail-badges { display: flex; gap: 6px; justify-content: center; margin-bottom: 8px; }
+
+  .detail-card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 12px; padding: 16px 18px; margin-bottom: 8px;
+  }
+  .detail-label { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.4px; color: var(--text-secondary); margin-bottom: 4px; }
+  .detail-val { font-size: 15px; line-height: 1.5; }
+  .detail-crew-list { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
+  .detail-crew-tag {
+    display: flex; align-items: center; gap: 6px;
+    padding: 6px 12px; background: #ecf5ec; border-radius: 8px;
+    font-size: 14px; font-weight: 500; color: #2d6a4f;
+  }
+  .btn-outline {
+    width: 100%; padding: 14px; margin-top: 16px;
+    background: var(--surface); color: var(--text);
+    border: 1px solid var(--border); border-radius: 12px;
+    font-family: inherit; font-size: 16px; font-weight: 600; cursor: pointer;
+  }
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <div class="nav-logo"><em>G</em></div>
+  <div class="nav-links">
+    <span>Kelder</span>
+    <span class="active">Boekingen</span>
+    <span>Levering</span>
+    <span>Logboek</span>
+    <span>Uitloggen</span>
+  </div>
+</nav>
+
+<!-- ===== AGENDA ===== -->
+<div class="screen active" id="s-agenda">
+  <div class="page-title">Boekingen</div>
+  <div class="chips">
+    <button class="chip active" onclick="fTab(this,'all')">Alles</button>
+    <button class="chip" onclick="fTab(this,'proeverij')">Proeverij</button>
+    <button class="chip" onclick="fTab(this,'vaartocht')">Vaartocht</button>
+    <button class="chip" onclick="fTab(this,'zelfvaren')">Zelf varen</button>
+  </div>
+  <div class="list-pad" id="bklist"></div>
+  <div class="cta-wrap">
+    <button class="cta-btn" onclick="go('form')">› Nieuwe boeking</button>
+  </div>
+</div>
+
+<!-- ===== FORM ===== -->
+<div class="screen" id="s-form">
+  <div class="form-wrap">
+    <button class="back-link" onclick="go('agenda')">← Terug</button>
+    <div class="form-title">Nieuwe boeking</div>
+    <div class="form-sub">Vul de gegevens in voor een proeverij of vaartocht</div>
+
+    <!-- Type -->
+    <div class="field">
+      <label class="field-label">Type <span class="req">*</span></label>
+    </div>
+    <div class="type-grid">
+      <div class="type-card sel" onclick="pType(this,'proeverij')"><div class="type-card-icon">🍷</div><div class="type-card-label">Proeverij</div></div>
+      <div class="type-card" onclick="pType(this,'vaartocht_met_drank')"><div class="type-card-icon">⛵🥂</div><div class="type-card-label">Vaartocht + proeverij</div></div>
+      <div class="type-card" onclick="pType(this,'vaartocht_zonder_drank')"><div class="type-card-icon">⛵</div><div class="type-card-label">Vaartocht</div></div>
+      <div class="type-card" onclick="pType(this,'zelfvaren')"><div class="type-card-icon">🚤</div><div class="type-card-label">Zelf varen</div></div>
+    </div>
+
+    <!-- Status -->
+    <div class="field">
+      <label class="field-label">Status</label>
+      <div class="status-opts">
+        <div class="status-opt sel-offerte" onclick="pStatus(this,'offerte')">Offerte</div>
+        <div class="status-opt" onclick="pStatus(this,'bevestigd')">Bevestigd</div>
+        <div class="status-opt" onclick="pStatus(this,'voorlopig')">Voorlopig</div>
+      </div>
+    </div>
+
+    <div class="field">
+      <label class="field-label">Klant <span class="req">*</span></label>
+      <input class="field-input" placeholder="Naam klant of bedrijf">
+    </div>
+    <div class="field">
+      <label class="field-label">Telefoon</label>
+      <input class="field-input" type="tel" placeholder="06-12345678">
+    </div>
+    <div class="field-row">
+      <div class="field"><label class="field-label">Datum <span class="req">*</span></label><input class="field-input" type="date"></div>
+      <div class="field"><label class="field-label">Tijd</label><input class="field-input" type="time"></div>
+    </div>
+    <div class="field">
+      <label class="field-label">Aantal personen</label>
+      <input class="field-input" placeholder="Bijv. 8, of Ntb">
+    </div>
+    <div class="field">
+      <label class="field-label">Prijs</label>
+      <input class="field-input" placeholder="Bijv. €250 of €35 p.p.">
+    </div>
+    <div class="field">
+      <label class="field-label">Locatie <span class="req">*</span></label>
+      <div class="pills">
+        <div class="pill sel" onclick="pLoc(this)">Het Genietschip</div>
+        <div class="pill" onclick="pLoc(this)">Thuislocatie</div>
+        <div class="pill" onclick="pLoc(this)">Anders</div>
+      </div>
+    </div>
+    <div class="field">
+      <label class="field-label">Bemanning</label>
+      <div class="field-hint" id="crew-hint">Wie van het Genietschap is erbij?</div>
+      <div class="members" id="fmem"></div>
+    </div>
+    <div class="field">
+      <label class="field-label">Opmerkingen</label>
+      <textarea class="field-textarea" placeholder="Bijv. allergieën, speciale wensen..."></textarea>
+    </div>
+    <button class="submit-btn" onclick="go('agenda')">Boeking aanmaken</button>
+    <div class="cancel-link" onclick="go('agenda')">Annuleren</div>
+  </div>
+</div>
+
+<!-- ===== DETAIL ===== -->
+<div class="screen" id="s-detail">
+  <div class="detail-wrap">
+    <button class="back-link" onclick="go('agenda')">← Terug</button>
+    <div class="detail-hero">
+      <div class="detail-badges" id="d-badges"></div>
+      <div class="detail-day-big" id="d-day"></div>
+      <div class="detail-date-sub" id="d-full"></div>
+    </div>
+    <div class="detail-card"><div class="detail-label">Klant</div><div class="detail-val" id="d-client"></div></div>
+    <div class="detail-card"><div class="detail-label">Wanneer</div><div class="detail-val" id="d-time"></div></div>
+    <div class="detail-card"><div class="detail-label">Locatie</div><div class="detail-val" id="d-loc"></div></div>
+    <div class="detail-card"><div class="detail-label">Aantal personen</div><div class="detail-val" id="d-persons"></div></div>
+    <div class="detail-card" id="d-price-wrap" style="display:none"><div class="detail-label">Prijs</div><div class="detail-val" id="d-price"></div></div>
+    <div class="detail-card"><div class="detail-label">Bemanning</div><div class="detail-crew-list" id="d-crew"></div></div>
+    <div class="detail-card" id="d-notes-wrap" style="display:none"><div class="detail-label">Opmerkingen</div><div class="detail-val" id="d-notes"></div></div>
+    <button class="btn-outline" onclick="go('agenda')">Bewerken</button>
+  </div>
+</div>
+
+<script>
+const M=[
+  {n:'Simon',i:'S',c:'#6b8f7b'},
+  {n:'Adnan',i:'A',c:'#8b7cb8'},
+  {n:'Thomas',i:'T',c:'#c0784e'},
+  {n:'Pieter',i:'P',c:'#5a9dc7'},
+  {n:'Marco',i:'M',c:'#c07070'},
+  {n:'Jan',i:'J',c:'#9a8d7b'},
+];
+
+const TYPE_LABELS={
+  proeverij:'Proeverij',
+  vaartocht_met_drank:'Vaartocht + proeverij',
+  vaartocht_zonder_drank:'Vaartocht',
+  zelfvaren:'Zelf varen'
+};
+
+const STATUS_CLS={
+  offerte:'badge-offerte',
+  bevestigd:'badge-bevestigd',
+  voorlopig:'badge-voorlopig'
+};
+const STATUS_LABELS={offerte:'Offerte',bevestigd:'Bevestigd',voorlopig:'Voorlopig'};
+
+const B=[
+  {id:1,type:'proeverij',status:'offerte',client:'Adnan',date:'wo 6 mei',d:6,time:'16:00',persons:'Ntb',loc:'Het Genietschip',price:'',crew:[1],notes:''},
+  {id:2,type:'proeverij',status:'bevestigd',client:'Familie De Vries',date:'do 14 mei',d:14,time:'19:30',persons:'8',loc:'Het Genietschip',price:'€280',crew:[0,2],notes:'Verjaardagsfeest, 2 vegetariërs'},
+  {id:3,type:'vaartocht_met_drank',status:'bevestigd',client:'Bedrijf Klaassen BV',date:'do 22 mei',d:22,time:'14:00',persons:'12',loc:'Het Genietschip',price:'€45 p.p.',crew:[0,3],notes:'Teamuitje met proeverij aan boord'},
+  {id:4,type:'vaartocht_zonder_drank',status:'voorlopig',client:'Martijn & Sophie',date:'za 7 jun',d:7,time:'15:00',persons:'2',loc:'Het Genietschip',price:'€150',crew:[0],notes:''},
+  {id:5,type:'vaartocht_met_drank',status:'offerte',client:'Rotary Club Tilburg',date:'vr 20 jun',d:20,time:'16:00',persons:'20',loc:'Het Genietschip',price:'',crew:[1,4],notes:'Grote groep, extra champagne bestellen'},
+  {id:6,type:'zelfvaren',status:'bevestigd',client:'Jan-Willem Smits',date:'za 28 jun',d:28,time:'10:00',persons:'4',loc:'Het Genietschip',price:'€175',crew:[],notes:'Ervaren zeiler, eigen route'},
+];
+
+let filter='all';
+
+function render(){
+  const el=document.getElementById('bklist');
+  const list=B.filter(b=>{
+    if(filter==='all') return true;
+    if(filter==='vaartocht') return b.type.startsWith('vaartocht');
+    return b.type===filter;
+  });
+  let h='';
+  list.forEach(b=>{
+    // Crew footer
+    let crewHtml='';
+    if(b.crew.length){
+      crewHtml=b.crew.map((i,idx)=>{
+        let sep=idx<b.crew.length-1?'<span class="crew-sep">·</span>':'';
+        return `<div class="crew-member"><div class="crew-av" style="background:${M[i].c}">${M[i].i}</div><span class="crew-name">${M[i].n}</span></div>${sep}`;
+      }).join('');
+    }
+    // Needs crew warning
+    const minCrew=b.type.startsWith('vaartocht')?2:1;
+    const needsCrew=b.crew.length<minCrew;
+    const warningHtml=needsCrew?`<span class="crew-warning">nog ${minCrew-b.crew.length} nodig</span>`:'';
+
+    // Meta
+    let metaParts=[b.time+' uur'];
+    metaParts.push(b.persons==='Ntb'?'Ntb':b.persons+' pers.');
+    if(b.price) metaParts.push(b.price);
+    metaParts.push(b.loc);
+
+    h+=`<div class="card" onclick="detail(${b.id})">
+      <div class="booking-inner">
+        <div class="booking-header">
+          <span class="booking-name">${b.client}</span>
+          <span class="booking-date-text">${b.date}</span>
+        </div>
+        <div class="badges">
+          <span class="badge badge-type">${TYPE_LABELS[b.type]||b.type}</span>
+          <span class="badge ${STATUS_CLS[b.status]}">${STATUS_LABELS[b.status]}</span>
+        </div>
+        <div class="booking-meta">${metaParts.map(p=>'<span>'+p+'</span>').join('')}</div>
+      </div>
+      <div class="booking-crew">${crewHtml||'<span class="crew-name">Geen bemanning</span>'}${warningHtml}</div>
+    </div>`;
+  });
+  el.innerHTML=h;
+}
+
+function fTab(el,t){
+  document.querySelectorAll('.chip').forEach(c=>c.classList.remove('active'));
+  el.classList.add('active');
+  filter=t; render();
+}
+
+function detail(id){
+  const b=B.find(x=>x.id===id);
+  document.getElementById('d-badges').innerHTML=
+    `<span class="badge badge-type">${TYPE_LABELS[b.type]}</span><span class="badge ${STATUS_CLS[b.status]}">${STATUS_LABELS[b.status]}</span>`;
+  document.getElementById('d-day').textContent=b.d;
+  document.getElementById('d-full').textContent=b.date+' 2026';
+  document.getElementById('d-client').textContent=b.client;
+  document.getElementById('d-time').textContent=b.time+' uur';
+  document.getElementById('d-loc').textContent=b.loc;
+  document.getElementById('d-persons').textContent=b.persons==='Ntb'?'Nog niet bekend':b.persons+' personen';
+  const pw=document.getElementById('d-price-wrap');
+  if(b.price){pw.style.display='block';document.getElementById('d-price').textContent=b.price;}
+  else{pw.style.display='none';}
+  document.getElementById('d-crew').innerHTML=b.crew.length
+    ? b.crew.map(i=>`<div class="detail-crew-tag"><div class="crew-av" style="background:${M[i].c}">${M[i].i}</div>${M[i].n}</div>`).join('')
+    : '<span style="font-size:14px;color:#6b7280">Geen bemanning toegewezen</span>';
+  const nw=document.getElementById('d-notes-wrap');
+  if(b.notes){nw.style.display='block';document.getElementById('d-notes').textContent=b.notes;}
+  else{nw.style.display='none';}
+  go('detail');
+}
+
+function go(s){
+  document.querySelectorAll('.screen').forEach(x=>x.classList.remove('active'));
+  document.getElementById('s-'+s).classList.add('active');
+  window.scrollTo(0,0);
+}
+
+function pType(el,t){
+  document.querySelectorAll('.type-card').forEach(c=>c.classList.remove('sel'));
+  el.classList.add('sel');
+  document.getElementById('crew-hint').textContent=
+    t.startsWith('vaartocht')?'Vaartocht: altijd 2 personen nodig':'Wie van het Genietschap is erbij?';
+}
+function pStatus(el,s){
+  document.querySelectorAll('.status-opt').forEach(c=>{c.className='status-opt';});
+  el.classList.add('sel-'+s);
+}
+function pLoc(el){
+  document.querySelectorAll('.pill').forEach(c=>c.classList.remove('sel'));
+  el.classList.add('sel');
+}
+
+document.getElementById('fmem').innerHTML=M.map(m=>
+  `<div class="mem-toggle" onclick="this.classList.toggle('sel')"><div class="crew-av" style="background:${m.c}">${m.i}</div>${m.n}</div>`
+).join('');
+
+render();
+</script>
+</body>
+</html>

@@ -3,6 +3,18 @@
 {% block content %}
 <div class="text-2xl font-bold mb-4">Boekingen</div>
 
+<!-- Filter chips -->
+<div class="flex gap-1.5 flex-wrap mb-5">
+    <a href="{{ url_for('agenda') }}"
+       class="text-sm px-3 py-1.5 rounded-full border {% if not type_filter %}bg-gray-900 text-white border-gray-900{% else %}bg-white text-gray-600 border-gray-200 hover:bg-gray-50{% endif %}">Alles</a>
+    <a href="{{ url_for('agenda', type='proeverij') }}"
+       class="text-sm px-3 py-1.5 rounded-full border {% if type_filter == 'proeverij' %}bg-gray-900 text-white border-gray-900{% else %}bg-white text-gray-600 border-gray-200 hover:bg-gray-50{% endif %}">Proeverij</a>
+    <a href="{{ url_for('agenda', type='vaartocht') }}"
+       class="text-sm px-3 py-1.5 rounded-full border {% if type_filter == 'vaartocht' %}bg-gray-900 text-white border-gray-900{% else %}bg-white text-gray-600 border-gray-200 hover:bg-gray-50{% endif %}">Vaartocht</a>
+    <a href="{{ url_for('agenda', type='zelfvaren') }}"
+       class="text-sm px-3 py-1.5 rounded-full border {% if type_filter == 'zelfvaren' %}bg-gray-900 text-white border-gray-900{% else %}bg-white text-gray-600 border-gray-200 hover:bg-gray-50{% endif %}">Zelf varen</a>
+</div>
+
 {% if upcoming %}
 {% set ns = namespace(current_month='') %}
 <div class="space-y-2 pb-24">
@@ -25,11 +37,9 @@
 
             <!-- Body -->
             <div class="flex-1 min-w-0 px-3.5 py-3">
-                <div class="flex items-center gap-1.5 mb-1">
-                    <span class="inline-block text-[11px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded {% if b.booking_type == 'proeverij' %}bg-amber-50 text-amber-700{% elif b.booking_type == 'vaartocht' %}bg-blue-50 text-blue-600{% else %}bg-gray-100 text-gray-500{% endif %}">{{ b.type_display }}</span>
-                    {% if b.is_voorlopig %}
-                    <span class="inline-block text-[11px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded bg-orange-50 text-orange-500 border border-orange-200">Voorlopig</span>
-                    {% endif %}
+                <div class="flex items-center gap-1.5 mb-1 flex-wrap">
+                    <span class="inline-block text-[11px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded {% if b.booking_type == 'proeverij' %}bg-amber-50 text-amber-700{% elif b.booking_type.startswith('vaartocht') %}bg-blue-50 text-blue-600{% else %}bg-gray-100 text-gray-500{% endif %}">{{ b.type_display }}</span>
+                    <span class="inline-block text-[11px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded {% if b.status == 'bevestigd' %}bg-emerald-50 text-emerald-600{% elif b.status == 'voorlopig' %}bg-orange-50 text-orange-500{% else %}bg-gray-100 text-gray-500{% endif %}">{{ b.status_display }}</span>
                 </div>
                 <div class="font-semibold text-[15px] truncate mb-1">{{ b.client_name }}</div>
                 <div class="flex flex-wrap gap-x-2.5 gap-y-0.5 text-[13px] text-gray-500">
@@ -37,7 +47,10 @@
                     <span>{{ b.time_description }}</span>
                     {% endif %}
                     {% if b.group_size %}
-                    <span>{{ b.group_size }}</span>
+                    <span>{{ b.group_size }} pers.</span>
+                    {% endif %}
+                    {% if b.price %}
+                    <span>{{ b.price }}</span>
                     {% endif %}
                     {% if b.location %}<span>{{ b.location }}</span>{% endif %}
                 </div>
@@ -101,7 +114,7 @@
             </div>
             {% endif %}
 
-            {% if b.is_voorlopig %}
+            {% if b.needs_crew %}
             {% set needed = b.min_crew - b.assigned_users|length %}
             <span class="text-[12px] text-orange-400 ml-auto">nog {{ needed }} nodig</span>
             {% endif %}
@@ -126,10 +139,14 @@
                     <div class="text-[11px] text-gray-400">{{ nl_weekday(b.date) }}</div>
                 </div>
                 <div class="flex-1 min-w-0 px-3.5 py-3">
-                    <span class="inline-block text-[11px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded mb-1 {% if b.booking_type == 'proeverij' %}bg-amber-50 text-amber-700{% elif b.booking_type == 'vaartocht' %}bg-blue-50 text-blue-600{% else %}bg-gray-100 text-gray-500{% endif %}">{{ b.type_display }}</span>
+                    <div class="flex items-center gap-1.5 mb-1 flex-wrap">
+                        <span class="inline-block text-[11px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded {% if b.booking_type == 'proeverij' %}bg-amber-50 text-amber-700{% elif b.booking_type.startswith('vaartocht') %}bg-blue-50 text-blue-600{% else %}bg-gray-100 text-gray-500{% endif %}">{{ b.type_display }}</span>
+                        <span class="inline-block text-[11px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded {% if b.status == 'bevestigd' %}bg-emerald-50 text-emerald-600{% elif b.status == 'voorlopig' %}bg-orange-50 text-orange-500{% else %}bg-gray-100 text-gray-500{% endif %}">{{ b.status_display }}</span>
+                    </div>
                     <div class="font-semibold text-[15px] truncate mb-1">{{ b.client_name }}</div>
                     <div class="flex flex-wrap gap-x-2.5 gap-y-0.5 text-[13px] text-gray-500">
                         {% if b.time_description %}<span>{{ b.time_description }}</span>{% endif %}
+                        {% if b.price %}<span>{{ b.price }}</span>{% endif %}
                         {% if b.location %}<span>{{ b.location }}</span>{% endif %}
                     </div>
                 </div>
@@ -170,6 +187,5 @@
     </div>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
 <style>[x-cloak] { display: none !important; }</style>
 {% endblock %}

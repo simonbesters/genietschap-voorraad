@@ -21,9 +21,11 @@
     </select>
 </div>
 
-{% if withdrawals %}
+{% if entries %}
 <div class="space-y-3">
-    {% for w in withdrawals %}
+    {% for entry in entries %}
+    {% if entry.type == 'withdrawal' %}
+    {% set w = entry.data %}
     <div class="bg-white border border-gray-200 rounded-lg p-4">
         <div class="flex items-start justify-between mb-2">
             <div>
@@ -44,9 +46,64 @@
             {% endfor %}
         </div>
     </div>
+
+    {% elif entry.type == 'levering' %}
+    {% set g = entry.data %}
+    <div class="bg-white border border-emerald-200 rounded-lg p-4">
+        <div class="mb-2">
+            <span class="font-medium text-sm">{{ g.user.display_name }}</span>
+            <span class="text-xs text-gray-500 ml-2">{{ g.date.strftime('%d %b %Y · %H:%M') }}</span>
+        </div>
+        <span class="inline-block text-[0.65rem] font-semibold uppercase tracking-wide bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded mb-2">Levering</span>
+        <div class="text-sm text-gray-500 leading-relaxed">
+            {% for item in g.lines %}
+            <div><span class="text-gray-900 font-medium">+{{ item.quantity }}&times;</span> {{ item.product_name }}</div>
+            {% endfor %}
+        </div>
+        {% if g.note %}
+        <p class="text-xs text-gray-400 mt-1.5">{{ g.note }}</p>
+        {% endif %}
+    </div>
+
+    {% elif entry.type == 'correctie' %}
+    {% set g = entry.data %}
+    <div class="bg-white border border-amber-200 rounded-lg p-4">
+        <div class="mb-2">
+            <span class="font-medium text-sm">{{ g.user.display_name }}</span>
+            <span class="text-xs text-gray-500 ml-2">{{ g.date.strftime('%d %b %Y · %H:%M') }}</span>
+        </div>
+        <span class="inline-block text-[0.65rem] font-semibold uppercase tracking-wide bg-amber-50 text-amber-700 px-2 py-0.5 rounded mb-2">Correctie</span>
+        <div class="text-sm text-gray-500 leading-relaxed">
+            {% for item in g.lines %}
+            <div><span class="text-gray-900 font-medium">{% if item.quantity > 0 %}+{% endif %}{{ item.quantity }}&times;</span> {{ item.product_name }}</div>
+            {% endfor %}
+        </div>
+        {% if g.note %}
+        <p class="text-xs text-gray-400 mt-1.5">{{ g.note }}</p>
+        {% endif %}
+    </div>
+
+    {% elif entry.type == 'bestelling' %}
+    {% set g = entry.data %}
+    <div class="bg-white border border-blue-200 rounded-lg p-4">
+        <div class="mb-2">
+            <span class="font-medium text-sm">Webshop</span>
+            <span class="text-xs text-gray-500 ml-2">{{ g.date.strftime('%d %b %Y · %H:%M') }}</span>
+        </div>
+        <span class="inline-block text-[0.65rem] font-semibold uppercase tracking-wide bg-blue-50 text-blue-700 px-2 py-0.5 rounded mb-2">Bestelling</span>
+        <div class="text-sm text-gray-500 leading-relaxed">
+            {% for item in g.lines %}
+            <div><span class="text-gray-900 font-medium">{{ item.quantity }}&times;</span> {{ item.product_name }}</div>
+            {% endfor %}
+        </div>
+        {% if g.note %}
+        <p class="text-xs text-gray-400 mt-1.5">{{ g.note }}</p>
+        {% endif %}
+    </div>
+    {% endif %}
     {% endfor %}
 </div>
 {% else %}
-<p class="text-gray-500 text-center py-12">Nog geen afnames geregistreerd.</p>
+<p class="text-gray-500 text-center py-12">Nog geen activiteit geregistreerd.</p>
 {% endif %}
 {% endblock %}

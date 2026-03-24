@@ -1,4 +1,8 @@
+import base64
+import hashlib
+import hmac
 import json
+import logging
 import os
 import re
 from datetime import date, timedelta
@@ -7,6 +11,7 @@ from dotenv import load_dotenv
 from flask import (
     Flask,
     flash,
+    jsonify,
     redirect,
     render_template,
     request,
@@ -32,6 +37,16 @@ db.init_app(app)
 
 with app.app_context():
     db.create_all()
+
+    # Migrate bookings table for new columns and vaartocht split
+    from sqlalchemy import inspect, text
+    cols = [c["name"] for c in inspect(db.engine).get_columns("bookings")]
+    with db.engine.begin() as conn:
+        if "status" not in cols:
+            conn.execute(text("ALTER TABLE bookings ADD COLUMN status VARCHAR(20) DEFAULT 'offerte'"))
+        if "price" not in cols:
+            conn.execute(text("ALTER TABLE bookings ADD COLUMN price VARCHAR(50)"))
+        conn.execute(text("UPDATE bookings SET booking_type='vaartocht_met_drank' WHERE booking_type='vaartocht'"))
 
 start_sync()
 
@@ -399,6 +414,88 @@ def correction():
     return render_template("correction.html", products=products)
 
 
+# --- WooCommerce Webhook ---
+
+logger = logging.getLogger(__name__)
+
+
+@app.route("/webhook/order", methods=["POST"])
+def webhook_order():
+    """Receive WooCommerce webhook for paid orders."""
+    # Verify signature
+    secret = os.environ.get("WOOCOMMERCE_WEBHOOK_SECRET", "")
+    signature = request.headers.get("X-WC-Webhook-Signature", "")
+    body = request.get_data()
+
+    if secret:
+        expected = hmac.new(
+            secret.encode(), body, hashlib.sha256
+        ).digest()
+        expected_b64 = base64.b64encode(expected).decode()
+        if not hmac.compare_digest(signature, expected_b64):
+            logger.warning("Webhook signature mismatch")
+            return jsonify({"error": "invalid signature"}), 401
+
+    # WooCommerce sends a ping on webhook creation
+    topic = request.headers.get("X-WC-Webhook-Topic", "")
+    if not topic or "ping" in topic.lower():
+        return jsonify({"ok": True, "msg": "pong"})
+
+    data = request.get_json(silent=True)
+    if not data:
+        return jsonify({"error": "no data"}), 400
+
+    # Only process orders that are paid (status = processing)
+    status = data.get("status", "")
+    if status != "processing":
+        return jsonify({"ok": True, "msg": f"ignored status {status}"})
+
+    order_id = data.get("id", "?")
+
+    # Prevent duplicate processing
+    existing = LogEntry.query.filter(
+        LogEntry.category == "bestelling",
+        LogEntry.note.like(f"Webshop bestelling #{order_id} —%"),
+    ).first()
+    if existing:
+        return jsonify({"ok": True, "msg": "already processed"})
+
+    billing = data.get("billing", {})
+    customer = billing.get("first_name", "")
+    if billing.get("last_name"):
+        customer += f" {billing['last_name']}"
+    customer = customer.strip() or "Webshop klant"
+
+    line_items = data.get("line_items", [])
+    if not line_items:
+        return jsonify({"ok": True, "msg": "no line items"})
+
+    note = f"Webshop bestelling #{order_id} — {customer}"
+
+    for item in line_items:
+        product_id = item.get("product_id")
+        quantity = item.get("quantity", 0)
+        product_name = item.get("name", "Onbekend product")
+
+        if not product_id or quantity < 1:
+            continue
+
+        entry = LogEntry(
+            woo_product_id=product_id,
+            product_name=product_name,
+            user_id=1,  # system user
+            quantity=-quantity,
+            category="bestelling",
+            note=note,
+        )
+        db.session.add(entry)
+
+    db.session.commit()
+
+    logger.info("Webhook order #%s processed: %d items", order_id, len(line_items))
+    return jsonify({"ok": True})
+
+
 # --- Log ---
 
 
@@ -418,8 +515,44 @@ def log():
     withdrawals = query.order_by(Withdrawal.created_at.desc()).limit(100).all()
     users = User.query.order_by(User.display_name).all()
 
+    # Fetch log entries (leveringen + correcties), grouped by session
+    log_query = LogEntry.query
+    if reason_filter:
+        # When filtering on withdrawal reason, hide log entries
+        log_query = log_query.filter(False)
+    if user_filter:
+        log_query = log_query.filter(LogEntry.user_id == int(user_filter))
+    log_entries = log_query.order_by(LogEntry.created_at.desc()).limit(200).all()
+
+    # Group log entries by session (same user + category + timestamp + note)
+    log_groups = []
+    seen = set()
+    for le in log_entries:
+        key = (le.user_id, le.category, str(le.created_at), le.note)
+        if key in seen:
+            continue
+        seen.add(key)
+        items = [e for e in log_entries if (e.user_id, e.category, str(e.created_at), e.note) == key]
+        log_groups.append({
+            "type": le.category,
+            "lines": sorted(items, key=lambda e: e.product_name),
+            "user": le.user,
+            "note": le.note,
+            "date": le.created_at,
+        })
+
+    # Merge withdrawals and log groups into a single timeline
+    entries = []
+    for w in withdrawals:
+        entries.append({"type": "withdrawal", "data": w, "date": w.created_at})
+    for g in log_groups:
+        entries.append({"type": g["type"], "data": g, "date": g["date"]})
+    entries.sort(key=lambda e: e["date"], reverse=True)
+    entries = entries[:100]
+
     return render_template(
         "log.html",
+        entries=entries,
         withdrawals=withdrawals,
         users=users,
         reason_filter=reason_filter,
@@ -434,20 +567,22 @@ def log():
 @login_required
 def agenda():
     today = date.today()
-    upcoming = (
-        Booking.query
-        .filter(Booking.date >= today)
-        .order_by(Booking.date.asc())
-        .all()
-    )
-    past = (
-        Booking.query
-        .filter(Booking.date < today)
-        .order_by(Booking.date.desc())
-        .all()
-    )
+    type_filter = request.args.get("type", "")
+
+    upcoming_q = Booking.query.filter(Booking.date >= today)
+    past_q = Booking.query.filter(Booking.date < today)
+
+    if type_filter == "vaartocht":
+        upcoming_q = upcoming_q.filter(Booking.booking_type.like("vaartocht%"))
+        past_q = past_q.filter(Booking.booking_type.like("vaartocht%"))
+    elif type_filter:
+        upcoming_q = upcoming_q.filter(Booking.booking_type == type_filter)
+        past_q = past_q.filter(Booking.booking_type == type_filter)
+
+    upcoming = upcoming_q.order_by(Booking.date.asc()).all()
+    past = past_q.order_by(Booking.date.desc()).all()
     users = User.query.order_by(User.display_name).all()
-    return render_template("agenda.html", upcoming=upcoming, past=past, users=users, today=today)
+    return render_template("agenda.html", upcoming=upcoming, past=past, users=users, today=today, type_filter=type_filter)
 
 
 @app.route("/agenda/nieuw", methods=["GET", "POST"])
@@ -471,6 +606,7 @@ def agenda_new():
             return redirect(url_for("agenda_new"))
 
         booking_type = request.form.get("booking_type", "proeverij")
+        status = request.form.get("status", "offerte")
         if booking_type == "proeverij":
             location = request.form.get("location", "").strip() or None
         else:
@@ -478,12 +614,14 @@ def agenda_new():
 
         booking = Booking(
             booking_type=booking_type,
+            status=status,
             client_name=client_name,
             client_phone=request.form.get("client_phone", "").strip() or None,
             date=booking_date,
             time_description=request.form.get("time_description", "").strip() or None,
             group_size=request.form.get("group_size", "").strip() or None,
             location=location,
+            price=request.form.get("price", "").strip() or None,
             notes=request.form.get("notes", "").strip() or None,
             created_by=session["user_id"],
         )
@@ -525,18 +663,21 @@ def agenda_edit(booking_id):
             return redirect(url_for("agenda_edit", booking_id=booking_id))
 
         booking_type = request.form.get("booking_type", "proeverij")
+        status = request.form.get("status", "offerte")
         if booking_type == "proeverij":
             location = request.form.get("location", "").strip() or None
         else:
             location = None
 
         booking.booking_type = booking_type
+        booking.status = status
         booking.client_name = client_name
         booking.client_phone = request.form.get("client_phone", "").strip() or None
         booking.date = booking_date
         booking.time_description = request.form.get("time_description", "").strip() or None
         booking.group_size = request.form.get("group_size", "").strip() or None
         booking.location = location
+        booking.price = request.form.get("price", "").strip() or None
         booking.notes = request.form.get("notes", "").strip() or None
 
         BookingAssignment.query.filter_by(booking_id=booking.id).delete()

@@ -35,7 +35,6 @@ class LogEntry(db.Model):
     created_at = db.Column(
         db.DateTime, nullable=False, default=lambda: datetime.now(timezone.utc)
     )
-
     def __repr__(self):
         return f"<LogEntry {self.product_name} {self.quantity:+d}>"
 
@@ -89,13 +88,15 @@ class Booking(db.Model):
     __tablename__ = "bookings"
 
     id = db.Column(db.Integer, primary_key=True)
-    booking_type = db.Column(db.String(20), nullable=False, default="proeverij")  # proeverij, vaartocht, zelfvaren
+    booking_type = db.Column(db.String(30), nullable=False, default="proeverij")  # proeverij, vaartocht_met_drank, vaartocht_zonder_drank, zelfvaren
+    status = db.Column(db.String(20), nullable=False, default="offerte")  # offerte, bevestigd, voorlopig
     client_name = db.Column(db.String(200), nullable=False)
     client_phone = db.Column(db.String(20), nullable=True)
     date = db.Column(db.Date, nullable=False)
     time_description = db.Column(db.String(100), nullable=True)
     group_size = db.Column(db.String(100), nullable=True)
     location = db.Column(db.String(300), nullable=True)
+    price = db.Column(db.String(50), nullable=True)
     notes = db.Column(db.Text, nullable=True)
     created_by = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
     created_at = db.Column(
@@ -107,11 +108,21 @@ class Booking(db.Model):
         "BookingAssignment", backref="booking", lazy=True, cascade="all, delete-orphan"
     )
 
-    _TYPE_LABELS = {"proeverij": "Proeverij", "vaartocht": "Vaartocht", "zelfvaren": "Zelf varen"}
+    _TYPE_LABELS = {
+        "proeverij": "Proeverij",
+        "vaartocht_met_drank": "Vaartocht + proeverij",
+        "vaartocht_zonder_drank": "Vaartocht",
+        "zelfvaren": "Zelf varen",
+    }
+    _STATUS_LABELS = {"offerte": "Offerte", "bevestigd": "Bevestigd", "voorlopig": "Voorlopig"}
 
     @property
     def type_display(self):
         return self._TYPE_LABELS.get(self.booking_type, self.booking_type)
+
+    @property
+    def status_display(self):
+        return self._STATUS_LABELS.get(self.status, self.status)
 
     @property
     def assigned_users(self):
@@ -119,10 +130,10 @@ class Booking(db.Model):
 
     @property
     def min_crew(self):
-        return 2 if self.booking_type == "vaartocht" else 1
+        return 2 if self.booking_type.startswith("vaartocht") else 1
 
     @property
-    def is_voorlopig(self):
+    def needs_crew(self):
         return len(self.assignments) < self.min_crew
 
     def __repr__(self):
